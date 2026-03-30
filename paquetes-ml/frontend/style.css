@@ -1,0 +1,160 @@
+  body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin-top: 70px;
+      padding-top: 30px;
+       overflow-y: scroll;
+    }
+    html {
+  scrollbar-width: none;       /* Firefox */
+}
+body::-webkit-scrollbar {
+  width: 0;
+  background: transparent;     /* Chrome / Edge / Safari */
+}
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 10px;
+      font-family: monospace;
+    }
+
+    input, select, button {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+    }
+    .person{
+        width: 70%;
+    }
+    .scanfecha{
+        width: 8%;
+    }
+    .scancolect{
+        width: 200px;
+    }
+    .packages{
+        width: 50%;
+    }
+    .process{
+        position: absolute;
+        margin-top: 30px;
+        margin-left: 20px;
+        width: 40%;
+        height: 90px;
+        background-color: rgb(34, 221, 34);
+        font-size: 30px;
+    }
+    .process:hover{
+        background-color: green;
+    }
+    .filter{
+        width: 55%;
+    }
+    .filterb{
+        
+        position: absolute;
+        top: 534px;
+        left: 800px;
+    }
+    .fildate{
+        width: 8%;
+    }
+    .filcol{
+        width: 30%;
+    }
+    .inputbu{
+        width: 19%;
+    }
+
+
+    button {
+      cursor: pointer;
+    }
+
+    .box {
+      background: white;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+    }
+
+    th {
+      background: #eee;
+    }
+    .table-container {
+  max-height: 420px;      /* ajusta a tu gusto */
+  overflow-y: auto;
+  border: 1px solid #ccc;
+}
+
+/* Mantener encabezado fijo */
+
+.navbar {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  height: 60px;
+  left: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: white;
+  padding: 10px;
+  border-bottom: 0px solid #ddd;
+  z-index: 1000;
+}
+
+nav {
+  display: flex;
+  gap: 20px;
+}
+
+nav a {
+  text-decoration: none;
+  color: black;
+  font-weight: bold;
+  margin-right: 40px;
+  
+}
+nav a:hover {
+  border-bottom: 2px solid black;
+}
+nav a.active {
+  border-bottom: 3px solid black;
+}
+.btn-pickit {
+  width: 35%;
+  height: 70px;
+  position: absolute;
+  top: 250px;
+  margin-left: 20px;
+  background-color: rgb(77, 255, 77);
+  font-size: 30px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-pickit:hover {
+  background-color: green;
+}
+.btn-ver{
+width: 10%;
+}
+.pass{
+width: 82%;
+}

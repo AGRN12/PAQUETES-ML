@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+
+  <title>Paquetes Mercado Libre</title>
+
+
+</head>
+<body data-page="mercadolibre">
+<div id="navbar"></div>
+
+<script>
+  fetch('nav.html')
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById('navbar').innerHTML = html;
+
+      // Marcar activo según página
+      const page = document.body.dataset.page;
+      document.querySelectorAll('nav a').forEach(a => {
+        if (a.dataset.page === page) {
+          a.classList.add('active');
+        }
+      });
+    });
+</script>
+<h2>Control de paquetes de Mercado Libre</h2>
+
+<!-- =================== ESCANEO COMPLETO =================== -->
+<div class="box">
+  <h3>Escanear / pegar paquetes</h3>
+
+  <!-- Persona -->
+  <input
+    id="scanPerson"
+    type="text"
+    placeholder="Nombre de la persona"
+    class="person"
+  />
+
+  <!-- Fecha manual -->
+  <input
+    id="scanDate"
+    type="date"
+    class="scanfecha"
+  />
+
+  <!-- Colecta -->
+  <select id="scanColecta" class="scancolect">
+    <option value="">Selecciona colecta</option>
+    <option value="1">Colecta 1</option>
+    <option value="2">Colecta 2</option>
+    <option value="3">Colecta 3</option>
+    <option value="4">Colecta 4</option>
+    <option value="5">Colecta 5</option>
+    <option value="6">Colecta 6</option>
+  </select>
+
+  <!-- Códigos -->
+  <textarea
+    id="packagesInput"
+    placeholder="Pega aquí los códigos..."
+    class="packages"
+  ></textarea>
+
+  <button onclick="processPackages()" class="process">Procesar paquetes</button>
+
+  <p id="result"></p>
+</div>
+
+<!-- =================== TABLA =================== -->
+<div class="box">
+  <h3>Paquetes registrados</h3><h4 class="filterb">Filtro por fecha y colecta</h4>
+
+  <!-- Buscador -->
+  <input
+    id="searchInput"
+    type="text"
+    placeholder="Buscar por código"
+    oninput="filterPackages()"
+    class="filter"
+  />
+   
+
+  <input type="date" id="filterDate" class="fildate">
+
+  <select id="filterColecta" class="filcol">
+    <option value="ALL">Todas las colectas</option>
+    <option value="1">Colecta 1</option>
+    <option value="2">Colecta 2</option>
+    <option value="3">Colecta 3</option>
+    <option value="4">Colecta 4</option>
+    <option value="5">Colecta 5</option>
+    <option value="6">Colecta 6</option>
+  </select>
+
+  <button onclick="filterByDateAndColecta()" class="inputbu">Filtrar</button>
+  <button onclick="resetDateColecta()" class="inputbu">Limpiar</button>
+  <button onclick="removeDuplicate()" class="inputbu"> Borrar repetidos</button>
+  <button onclick="deleteSelected()" style="background:#c62828;color:white" class="inputbu">
+  Borrar seleccionados
+</button>
+<button onclick="printTable()" class="inputbu">Imprimir resultados</button>
+
+  <p id="filteredTotal"><strong>Total filtrado:</strong> 0</p>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th></th>
+        <th>Código</th>
+        <th>Tipo</th>
+        <th>Fecha</th>
+        <th>Persona</th>
+        <th>Colecta</th>
+        <th>Editar</th>
+      </tr>
+    </thead>
+    <tbody id="packagesTable"></tbody>
+  </table>
+  </div>
+  <p id="totalCount"><strong>Total general:</strong> 0</p>
+
+</div>
+
+<script>
+  let allPackages = [];
+  const API = 'http://localhost:3000/packages';
+
+  /* =================== PROCESAR PAQUETES =================== */
+async function processPackages() {
+  const input = document.getElementById('packagesInput').value.trim();
+  const person = document.getElementById('scanPerson').value.trim();
+  const date = document.getElementById('scanDate').value;
+  const colecta = document.getElementById('scanColecta').value;
+
+  if (!input || !person || !date || !colecta) {
+    alert('Llena todos los campos');
+    return;
+  }
+
+  const res = await fetch(API + '/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      input,
+      person,
+      date,
+      colecta: Number(colecta),
+    })
+  });
+
+  const data = await res.json();
+
+  document.getElementById('result').innerText =
+    `Total: ${data.total} | Normales: ${data.normales} | Devoluciones: ${data.devoluciones}`;
+
+  document.getElementById('packagesInput').value = '';
+
+  loadPackages();
+}
+
+
+  /* =================== CARGAR TABLA =================== */
+ async function loadPackages() {
+  const res = await fetch(API);
+  allPackages = await res.json();
+  renderTable(allPackages);
+  updateTotal(allPackages.length);
+}
+
+function updateTotal(count) {
+  document.getElementById('totalCount').innerHTML =
+    `<strong>Total general:</strong> ${count}`;
+}
+
+function renderTable(packages) {
+  const tbody = document.getElementById('packagesTable');
+  tbody.innerHTML = '';
+
+  for (const p of packages) {
+    tbody.innerHTML += `
+      <tr id="row-${p.id}">
+        <td>
+          <input type="checkbox" class="row-check" value="${p.id}">
+        </td>
+        <td>${p.code}</td>
+        <td>${p.type}</td>
+        <td>${p.date}</td>
+        <td>${p.person ?? ''}</td>
+        <td>${p.colecta ?? ''}</td>
+        <td>
+          <button onclick="editRow(${p.id})">Editar</button>
+        </td>
+      </tr>
+    `;
+  }
+}
+
+
+
+
+  /* =================== BUSCADOR =================== */
+  function filterByDateAndColecta() {
+  const date = document.getElementById('filterDate').value;
+  const colecta = document.getElementById('filterColecta').value;
+
+  let filtered = allPackages;
+
+  if (date) {
+    filtered = filtered.filter(p => p.date === date);
+  }
+
+  if (colecta !== 'ALL') {
+    filtered = filtered.filter(
+      p => String(p.colecta) === colecta
+    );
+  }
+
+  renderTable(filtered);
+
+  document.getElementById('filteredTotal').innerHTML =
+    `<strong>Total filtrado:</strong> ${filtered.length}`;
+}
+
+function resetDateColecta() {
+  document.getElementById('filterDate').value = '';
+  document.getElementById('filterColecta').value = 'ALL';
+
+  renderTable(allPackages);
+
+  document.getElementById('filteredTotal').innerHTML =
+    `<strong>Total filtrado:</strong> 0`;
+}
+
+  function filterPackages() {
+    const search = document.getElementById('searchInput')
+    .value
+    .toLowerCase();
+
+  const filtered = allPackages.filter(p =>
+    p.code.toLowerCase().includes(search)
+  );
+
+  renderTable(filtered);
+
+  // ⬅️ OJO: el total NO cambia
+  updateTotal(allPackages.length);
+  }
+
+ function editRow(id) {
+  const pkg = allPackages.find(p => p.id === id);
+  const row = document.getElementById(`row-${id}`);
+
+  if (!row || !pkg) {
+    console.error('Fila no encontrada', id);
+    return;
+  }
+
+  row.innerHTML = `
+    <td></td>
+    <td><input value="${pkg.code}" id="code-${id}"></td>
+
+    <td>
+      <select id="type-${id}">
+        <option value="DROP_OFF" ${pkg.type === 'DROP_OFF' ? 'selected' : ''}>DROP_OFF</option>
+        <option value="DEVOLUCION" ${pkg.type === 'DEVOLUCION' ? 'selected' : ''}>DEVOLUCION</option>
+        <option value="PICK_UP" ${pkg.type === 'PICK_UP' ? 'selected' : ''}>PICK_UP</option>
+      </select>
+    </td>
+
+    <td><input type="date" value="${pkg.date}" id="date-${id}"></td>
+    <td><input value="${pkg.person}" id="person-${id}"></td>
+    <td><input type="number" value="${pkg.colecta}" id="colecta-${id}"></td>
+
+    <td>
+      <button onclick="saveRow(${id})">Guardar</button>
+    </td>
+  `;
+}
+
+async function saveRow(id) {
+  const body = {
+    code: document.getElementById(`code-${id}`).value,
+    type: document.getElementById(`type-${id}`).value,
+    date: document.getElementById(`date-${id}`).value,
+    person: document.getElementById(`person-${id}`).value,
+    colecta: Number(document.getElementById(`colecta-${id}`).value),
+  };
+
+  if (!body.code || !body.type || !body.date || !body.person || !body.colecta) {
+    alert('No dejes campos vacíos');
+    return;
+  }
+
+  await fetch(`${API}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  loadPackages();
+}
+
+//Borrar repetidos
+
+async function removeDuplicate(){
+  if(!confirm('¿Seguro que deseas borrar los paquetes repetidos?')){
+    return;
+  }
+
+  const res = await fetch(API + '/duplicates', {
+    method: 'DELETE',
+  });
+
+  const data = await res.json();
+
+  alert(`Repetidos eliminados: ${data.deleted}`);
+  
+  loadPackages();
+}
+//borrar selecionados
+async function deleteSelected() {
+  const checks = document.querySelectorAll('.row-check:checked');
+
+  if (checks.length === 0) {
+    alert('Selecciona al menos un paquete');
+    return;
+  }
+
+  const ids = Array.from(checks).map(c => Number(c.value));
+
+  if (!confirm(`¿Seguro que deseas borrar ${ids.length} paquete(s)?`)) {
+    return;
+  }
+
+  await fetch(API, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+
+  loadPackages();
+}
+
+
+  // Cargar al abrir
+  loadPackages();
+</script>
+<script src="app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>Document</title>
+</head>
+<body data-page="pickit">
+<div id="navbar"></div>
+<div class="box">
+    <h2>Pickit · Ingreso de paquetes</h2>
+
+    <!-- Fecha de ingreso -->
+    <input type="date" id="ingresoDate" style="position:absolute ;width: 30%; left: 62%;">
+
+    <!-- Códigos -->
+    <textarea
+      id="codesInput"
+      placeholder="Pega uno o varios códigos (uno por línea)"
+      style="width: 60%;"
+    ></textarea>
+
+    <button onclick="createPickit()" class="btn-pickit">Guardar paquetes</button>
+
+    <p id="result"></p>
+  </div>
+
+  <div class="box">
+    <h3>Paquetes Pickit</h3> <h3 style="position: absolute; top: 420px; left: 74%;">filtrado por fecha de ingreso</h3>
+  <input type="text"
+  id="searchCode"
+  placeholder="BUSCAR POR CODIGO......"
+  oninput="filterPickit()"
+  style="margin-bottom: 10px; width: 70%;">
+  <input type="date"
+  id="filterIngresoDate"
+  onchange="filterByIngresoDate()"
+  style="width: 8%;""/>
+  <button onclick="clearIngresoFilter()" 
+  style="width: 17%;">Limpiar fecha</button>
+  <button onclick="deleteDuplicatePickit()" style="width: 20%;"> Borrar duplicados</button>
+  <button onclick="deleteSelectedPickit();" style="width: 20%; background-color: red; color: white;">Eliminar selecionados</button>
+  <button onclick="printPickitTable()();" style="width: 20%;">Imprimir</button>
+  
+  <p id="pickitCount"><b>Total paquetes:</b> 0</p>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>ID</th>
+          <th>Código</th>
+          <th>Ingreso</th>
+          <th>Recibió</th>
+          <th>Estado</th>
+          <th>Salida</th>
+          <th>Editar</th>
+        </tr>
+      </thead>
+      <tbody id="pickitTable"></tbody>
+    </table>
+  </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:3000/pickit';
+let pickitPackages = [];
+
+
+//contador de paquetes
+
+function updatePickitCount(list) {
+  const total = list.length;
+
+  document.getElementById('pickitCount').innerHTML = 
+  `<b>Paquetes mostrados:</b> ${total}`;
+
+}
+/* ================= CREAR ================= */
+async function createPickit() {
+  const codes = document.getElementById('codesInput').value.trim();
+  const ingresoDate = document.getElementById('ingresoDate').value;
+
+  if (!codes || !ingresoDate) {
+    alert('Ingresa códigos y fecha');
+    return;
+  }
+
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codes, ingresoDate }),
+  });
+
+  const data = await res.json();
+
+  document.getElementById('result').innerText =
+    `Paquetes ingresados: ${data.total}`;
+
+  document.getElementById('codesInput').value = '';
+
+  loadPickit();
+}
+
+/* ================= LISTAR ================= */
+async function loadPickit() {
+  const res = await fetch(API);
+  pickitPackages = await res.json();
+  renderPickitTable();
+}
+
+function filterByIngresoDate(){
+  const date = document.getElementById('filterIngresoDate').value;
+
+  if(!date){
+    renderPickitTable();
+    return;
+  }
+
+  filteredPickit = pickitPackages.filter(p => p.ingresoDate === date);
+  renderPickitTable(filteredPickit)
+}
+function clearIngresoFilter(){
+  document.getElementById('filterIngresoDate').value = '' ;
+  renderPickitTable();
+}
+
+function renderPickitTable(list = pickitPackages) {
+  const tbody = document.getElementById('pickitTable');
+  tbody.innerHTML = '';
+
+  for (const p of list) {
+    tbody.innerHTML += `
+      <tr data-id="${p.id}">
+      <td>
+          <input type="checkbox" class="pickit-check" value="${p.id}">
+        </td>
+        <td>${p.id}</td>
+        <td>${p.code}</td>
+        <td>${p.ingresoDate}</td>
+        <td>${p.recibio ?? ''}</td>
+        <td>${p.estado}</td>
+        <td>${p.salidaDate ? new Date(p.salidaDate).toLocaleString() : ''}</td>
+        <td>
+          <button onclick="editPickit(${p.id})">Editar</button>
+        </td>
+      </tr>
+    `;
+  }
+  //actualiza contador
+  updatePickitCount(list)
+}
+
+
+function filterPickit(){
+  const text = document.getElementById('searchCode').value.toLowerCase();
+
+  const filtered = pickitPackages.filter(p =>
+    p.code.toLowerCase().includes(text)
+  );
+  renderPickitTable(filtered);
+}
+
+async function deleteDuplicatePickit(){
+  if (!confirm('¿Seguro que deseas borrar paquetes duplicados por código?')){
+    return;
+  }
+
+  const seen = new Map();
+  const duplicatedIds = [];
+
+  //recorremos ordenados por ID(el mas viejo se queda)
+
+  const sorted = [...pickitPackages].sort((a, b) => a.id - b.id);
+
+  for (const p of sorted) {
+    if (seen.has(p.code)) {
+      duplicatedIds.push(p.id); //duplicado se borra
+    }else{
+      seen.set(p.code, true); //primer codigo se conserva
+    }
+  }
+  if(duplicatedIds.length === 0){
+    alert('No hay paquetes duplicados');
+    return;
+  }
+
+  await fetch(API,{
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: duplicatedIds }),
+  });
+
+  alert(`Duplicados eliminados: ${duplicatedIds.length}`);
+  loadPickit();
+}
+function editPickit(id) {
+  const pkg = pickitPackages.find(p => p.id === id);
+  const row = document.querySelector(`tr[data-id="${id}"]`);
+
+  if (!pkg || !row) return;
+
+  row.innerHTML = `
+    <td>${pkg.id}</td>
+    <td><input value="${pkg.code}" id="code-${id}"></td>
+    <td><input type="date" value="${pkg.ingresoDate}" id="ingreso-${id}"></td>
+    <td><input value="${pkg.recibio ?? ''}" id="recibio-${id}"></td>
+
+    <td>
+      <select id="estado-${id}">
+        <option value="AGENCIA" ${pkg.estado === 'AGENCIA' ? 'selected' : ''}>AGENCIA</option>
+        <option value="ENTREGADO" ${pkg.estado === 'ENTREGADO' ? 'selected' : ''}>ENTREGADO</option>
+        <option value="DEVOLUCION" ${pkg.estado === 'DEVOLUCION' ? 'selected' : ''}>DEVOLUCION</option>
+      </select>
+    </td>
+
+    <td>
+  <input
+    type="datetime-local"
+    id="salida-${id}"
+    value="${
+      pkg.salidaDate
+        ? new Date(pkg.salidaDate).toISOString().slice(0, 16)
+        : ''
+    }"
+  >
+</td>
+
+    <td>
+      <button onclick="savePickit(${id})">Guardar</button>
+    </td>
+  `;
+}
+async function savePickit(id) {
+  const code = document.getElementById(`code-${id}`).value;
+  const ingresoDate = document.getElementById(`ingreso-${id}`).value;
+  const recibio = document.getElementById(`recibio-${id}`).value || null;
+  const estado = document.getElementById(`estado-${id}`).value;
+  const salidaDateInput = document.getElementById(`salida-${id}`).value;
+
+  if (!code || !ingresoDate) {
+    alert('Código y fecha son obligatorios');
+    return;
+  }
+
+  await fetch(`${API}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code,
+      ingresoDate,
+      recibio,
+      estado,
+      salidaDate: salidaDateInput || null, // 👈 editable manual
+    }),
+  });
+
+  loadPickit();
+}
+
+async function deleteSelectedPickit() {
+
+  const ids = Array.from(
+    document.querySelectorAll('.pickit-check:checked')
+  ).map(cb => Number(cb.value));
+
+  if(ids.length === 0){
+    alert('Selecciona al menos un paquete');
+    return;
+  }
+
+  if (!confirm(`¿Eliminar ${ids.length} paquetes?`)) return;
+
+  await fetch('http://localhost:3000/pickit',{
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids}),
+  });
+  loadPickit();
+  
+}
+
+loadPickit();
+  </script>
+
+
+<script>
+  fetch('nav.html')
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById('navbar').innerHTML = html;
+
+      // Marcar activo según página
+      const page = document.body.dataset.page;
+      document.querySelectorAll('nav a').forEach(a => {
+        if (a.dataset.page === page) {
+          a.classList.add('active');
+        }
+      });
+    });
+</script>
+<script src="printpickit.js"></script>
+</body>
+</html>

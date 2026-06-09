@@ -1,0 +1,88 @@
+{
+  "name": "paquetes-ml",
+  "version": "2.0.2",
+  "description": "Sistema de Control de Paquetes Mercado Libre",
+  "main": "main.js",
+  "author": "angel",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "nest:build": "nest build",
+    "electron:start": "electron .",
+    "start:electron": "electron .",
+    "start:dev": "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :3000') do taskkill /F /PID %a 2>nul & nest start --watch",
+    "build:exe": "npm run nest:build && npx electron-builder",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "dist": "electron-builder",
+    "electron:build": "electron-builder"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/typeorm": "^11.0.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.8.0",
+    "electron-log": "^5.4.3",
+    "passport-jwt": "^4.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.28"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@types/multer": "^2.1.0",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "kill-port": "^2.0.1",
+    "typescript": "^5.7.3"
+  },
+  "build": {
+    "asar": false,
+    "appId": "com.paquetes.ml",
+    "files": [
+      "dist/**/*",
+      "frontend/**/*",
+      "main.js",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dist",
+        "to": "backend"
+      },
+      {
+        "from": "node_modules",
+        "to": "backend/node_modules"
+      }
+    ],
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "requestedExecutionLevel": "requireAdministrator",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/logo.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Paquetes Mercado Libre"
+    }
+  }
+}

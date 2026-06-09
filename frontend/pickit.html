@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <title>PICKIT</title>
+</head>
+<body> <div id="navbar"></div>
+  <script>
+
+  fetch('nav.html')
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById('navbar').innerHTML = html;
+
+      // Marcar activo según página
+      const page = document.body.dataset.page;
+      document.querySelectorAll('nav a').forEach(a => {
+        if (a.dataset.page === page) {
+          a.classList.add('active');
+        }
+      });
+    });
+
+  
+
+</script>
+<div class="box">
+    <h2>Pickit · Ingreso de paquetes</h2>
+    <input type="date" id="ingresoDate" style="position:absolute ;width: 30%; left: 62%;">
+    <textarea id="codesInput" placeholder="Pega uno o varios códigos (uno por línea)" style="width: 60%;"></textarea>
+    <button onclick="createPickit()" class="btn-pickit">Guardar paquetes</button>
+    <p id="result"></p>
+</div>
+
+<div class="box">
+    <h3>Paquetes Pickit</h3> 
+    <h3 style="position: absolute; top: 420px; left: 74%;">filtrado por fecha de ingreso</h3>
+    <input type="text" id="searchCode" placeholder="BUSCAR POR CODIGO......" oninput="filterPickit()" style="margin-bottom: 10px; width: 70%;">
+    <input type="date" id="filterIngresoDate" onchange="filterByIngresoDate()" style="width: 8%;">
+    <button onclick="clearIngresoFilter()" style="width: 17%;">Limpiar fecha</button>
+    <button onclick="deleteDuplicatePickit()" style="width: 20%;"> Borrar duplicados</button>
+    <button onclick="deleteSelectedPickit();" style="width: 20%; background-color: red; color: white;">Eliminar seleccionados</button>
+    <button onclick="printPickitTable();" style="width: 20%;">Imprimir</button>
+
+    <div style="margin-top: 15px; padding: 15px; border: 2px solid #007bff; border-radius: 8px; background-color: #f0f7ff;">
+        <label><strong>📅 Reporte Mensual (Selecciona varios con Ctrl):</strong></label>
+        <br>
+        <select id="filterMonth" onchange="filterByMonthYear()" multiple style="width: 200px; height: 100px; margin: 10px 0; padding: 5px;">
+            <option value="01">Enero</option>
+            <option value="02">Febrero</option>
+            <option value="03">Marzo</option>
+            <option value="04">Abril</option>
+            <option value="05">Mayo</option>
+            <option value="06">Junio</option>
+            <option value="07">Julio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+        </select>
+
+        <select id="filterYear" onchange="filterByMonthYear()" style="padding: 5px; vertical-align: top;"></select>
+        
+        <div style="display: inline-block; vertical-align: top; margin-left: 20px;">
+            <button onclick="clearMonthFilter()" style="margin-bottom: 5px;">Restablecer</button>
+            <br>
+            <button onclick="exportToPDF()" style="background-color: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Guardar como PDF</button>
+        </div>
+    </div>
+
+    <p id="pickitCount"><b>Total paquetes:</b> 0</p>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="todos" onclick="toggleAll(this)"></th>
+                    <th>ID</th>
+                    <th>Código</th>
+                    <th>Ingreso</th>
+                    <th>Recibió</th>
+                    <th>Estado</th>
+                    <th>Salida</th>
+                    <th>Editar</th>
+                </tr>
+            </thead>
+            <tbody id="pickitTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+const API = 'http://localhost:3000/pickit';
+let pickitPackages = [];
+let currentFilteredList = []; // Para saber qué hay en pantalla al exportar PDF
+
+function updatePickitCount(list) {
+    document.getElementById('pickitCount').innerHTML = `<b>Paquetes mostrados:</b> ${list.length}`;
+}
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function createPickit() {
+    const codesInput = document.getElementById('codesInput').value.trim();
+    const ingresoDate = document.getElementById('ingresoDate').value;
+    if (!codesInput || !ingresoDate) { await showConfirmModal('Ingresa códigos y fecha'); return; }
+
+    const lines = codesInput.split('\n').filter(l => l.trim() !== '');
+    const chunkSize = 50;
+    const btn = document.querySelector('button[onclick="createPickit()"]');
+
+    try {
+        if (btn) { btn.disabled = true; btn.innerText = 'Iniciando...'; }
+        for (let i = 0; i < lines.length; i += chunkSize) {
+            const chunk = lines.slice(i, i + chunkSize).join('\n');
+            if (btn) btn.innerText = `Enviando: ${i} de ${lines.length}...`;
+            const res = await fetch(API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codes: chunk, ingresoDate }),
+            });
+            if (!res.ok) throw new Error(`Error en el bloque ${i}`);
+            await sleep(800);
+        }
+        document.getElementById('codesInput').value = '';
+        await showConfirmModal('Carga completada');
+        loadPickit();
+    } catch (error) {
+        await showConfirmModal('Error: ' + error.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerText = 'Guardar paquetes'; }
+    }
+}
+
+async function loadPickit() {
+    const res = await fetch(API);
+    pickitPackages = await res.json();
+    currentFilteredList = [...pickitPackages];
+    renderPickitTable();
+}
+
+function renderPickitTable(list = pickitPackages) {
+    currentFilteredList = list;
+    const tbody = document.getElementById('pickitTable');
+    tbody.innerHTML = '';
+    for (const p of list) {
+        tbody.innerHTML += `
+            <tr data-id="${p.id}">
+                <td><input type="checkbox" class="pickit-check" value="${p.id}"></td>
+                <td>${p.id}</td>
+                <td>${p.code}</td>
+                <td>${p.ingresoDate}</td>
+                <td>${p.recibio ?? ''}</td>
+                <td>${p.estado}</td>
+                <td>${p.salidaDate ? new Date(p.salidaDate).toLocaleString() : ''}</td>
+                <td><button onclick="editPickit(${p.id})">Editar</button></td>
+            </tr>`;
+    }
+    updatePickitCount(list);
+}
+
+// FILTRADO POR FECHA EXACTA
+function filterByIngresoDate(){
+    const date = document.getElementById('filterIngresoDate').value;
+    if(!date){ renderPickitTable(); return; }
+    const filtered = pickitPackages.filter(p => p.ingresoDate === date);
+    renderPickitTable(filtered);
+}
+
+function clearIngresoFilter(){
+    document.getElementById('filterIngresoDate').value = '';
+    renderPickitTable();
+}
+
+// FILTRADO POR MES (MULTIPLE) Y AÑO
+async function filterByMonthYear() {
+    const monthSelect = document.getElementById('filterMonth');
+    const selectedMonths = Array.from(monthSelect.selectedOptions).map(option => option.value);
+    const selectedYear = document.getElementById('filterYear').value;
+
+    if (selectedMonths.length === 0 && !selectedYear) {
+        renderPickitTable(pickitPackages);
+        return;
+    }
+
+    const filtered = pickitPackages.filter(pkg => {
+        if (!pkg.ingresoDate) return false;
+        const parts = pkg.ingresoDate.split('-');
+        const pkgYear = parts[0];
+        const pkgMonth = parts[1];
+
+        const matchMonth = selectedMonths.length > 0 ? selectedMonths.includes(pkgMonth) : true;
+        const matchYear = selectedYear ? pkgYear === selectedYear : true;
+        return matchMonth && matchYear;
+    });
+
+    renderPickitTable(filtered);
+}
+
+function clearMonthFilter() {
+    document.getElementById('filterMonth').selectedIndex = -1;
+    document.getElementById('filterYear').value = "";
+    renderPickitTable(pickitPackages);
+}
+
+// FUNCION EXPORTAR PDF
+function exportToPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text("Reporte de Paquetes Pickit", 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Total mostrados: ${currentFilteredList.length} | Fecha: ${new Date().toLocaleDateString()}`, 14, 28);
+
+    const rows = currentFilteredList.map(p => [
+        p.id, p.code, p.ingresoDate, p.recibio || '', p.estado, p.salidaDate ? new Date(p.salidaDate).toLocaleDateString() : ''
+    ]);
+
+    doc.autoTable({
+        startY: 35,
+        head: [['ID', 'Código', 'Ingreso', 'Recibió', 'Estado', 'Salida']],
+        body: rows,
+    });
+
+    doc.save(`Reporte_Pickit_${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// BUSQUEDA POR TEXTO
+function filterPickit(){
+    const text = document.getElementById('searchCode').value.toLowerCase();
+    const filtered = pickitPackages.filter(p => p.code.toLowerCase().includes(text));
+    renderPickitTable(filtered);
+}
+
+// EDICION Y OTROS (SIN CAMBIOS)
+function editPickit(id) {
+    const pkg = pickitPackages.find(p => p.id === id);
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!pkg || !row) return;
+    row.innerHTML = `
+        <td></td><td>${pkg.id}</td>
+        <td><input value="${pkg.code}" id="code-${id}"></td>
+        <td><input type="date" value="${pkg.ingresoDate}" id="ingreso-${id}"></td>
+        <td><input value="${pkg.recibio ?? ''}" id="recibio-${id}"></td>
+        <td>
+            <select id="estado-${id}">
+                <option value="AGENCIA" ${pkg.estado === 'AGENCIA' ? 'selected' : ''}>AGENCIA</option>
+                <option value="ENTREGADO" ${pkg.estado === 'ENTREGADO' ? 'selected' : ''}>ENTREGADO</option>
+                <option value="DEVOLUCION" ${pkg.estado === 'DEVOLUCION' ? 'selected' : ''}>DEVOLUCION</option>
+            </select>
+        </td>
+        <td><input type="datetime-local" id="salida-${id}" value="${pkg.salidaDate ? new Date(pkg.salidaDate).toISOString().slice(0, 16) : ''}"></td>
+        <td><button onclick="savePickit(${id})">Guardar</button></td>`;
+}
+
+async function savePickit(id) {
+    const code = document.getElementById(`code-${id}`).value;
+    const ingresoDate = document.getElementById(`ingreso-${id}`).value;
+    const recibio = document.getElementById(`recibio-${id}`).value || null;
+    const estado = document.getElementById(`estado-${id}`).value;
+    const salidaDateInput = document.getElementById(`salida-${id}`).value;
+    await fetch(`${API}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, ingresoDate, recibio, estado, salidaDate: salidaDateInput || null }),
+    });
+    loadPickit();
+}
+
+async function deleteDuplicatePickit(){
+    const ok = await showConfirmModal('¿Borrar duplicados?');
+    if (!ok) return;
+    const seen = new Map();
+    const duplicatedIds = [];
+    const sorted = [...pickitPackages].sort((a, b) => a.id - b.id);
+    for (const p of sorted) {
+        if (seen.has(p.code)) duplicatedIds.push(p.id);
+        else seen.set(p.code, true);
+    }
+    if(duplicatedIds.length === 0){ await showConfirmModal('No hay duplicados'); return; }
+    await fetch(API,{ method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: duplicatedIds }) });
+    loadPickit();
+}
+async function deleteSelectedPickit() {
+    const ids = Array.from(document.querySelectorAll('.pickit-check:checked')).map(cb => Number(cb.value));
+    
+    if (ids.length === 0) { 
+        await showConfirmModal('Selecciona al menos un paquete'); 
+        return; 
+    }
+    
+    const ok = await showConfirmModal(`¿Eliminar ${ids.length} paquetes seleccionados?`);
+    if (!ok) return;
+
+    try {
+        const res = await fetch(API, { 
+            method: 'DELETE', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ ids }) 
+        });
+
+        if (res.ok) {
+            // Desmarcamos el checkbox de "Todos" después de borrar
+            document.getElementById('todos').checked = false;
+            loadPickit();
+        }
+    } catch (error) {
+        await showConfirmModal('Error al eliminar: ' + error.message);
+    }
+}
+
+function setupYearSelector() {
+    const yearSelect = document.getElementById('filterYear');
+    const startYear = 2023;
+    const currentYear = new Date().getFullYear();
+    yearSelect.innerHTML = '<option value="">Año</option>';
+    for (let year = currentYear; year >= startYear; year--) {
+        let option = document.createElement('option');
+        option.value = year; option.text = year; yearSelect.appendChild(option);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setupYearSelector();
+    loadPickit();
+});
+
+// MODAL LOGIC (SIN CAMBIOS)
+let modalResolve;
+function showConfirmModal(message, title = 'Confirmar') {
+    return new Promise(resolve => {
+        modalResolve = resolve;
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMessage').innerText = message;
+        document.getElementById('modalOverlay').style.display = 'flex';
+    });
+}
+function closeModal(ok) {
+    document.getElementById('modalOverlay').style.display = 'none';
+    modalResolve(ok);
+}
+function toggleAll(source) {
+    // Buscamos los checkboxes de la tabla de Pickit
+    const checkboxes = document.querySelectorAll('.pickit-check');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = source.checked;
+    });
+}
+</script>
+
+<div id="modalOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); align-items:center; justify-content:center; z-index: 1000;">
+  <div style="background:#fff; padding:20px; border-radius:8px; min-width:300px;">
+    <h3 id="modalTitle"></h3>
+    <p id="modalMessage"></p>
+    <div style="text-align:right; margin-top:15px;">
+      <button onclick="closeModal(false)">Cancelar</button>
+      <button onclick="closeModal(true)">Aceptar</button>
+    </div>
+  </div>
+</div>
+<script src="printpickit.js"></script>
+</body>
+</html>

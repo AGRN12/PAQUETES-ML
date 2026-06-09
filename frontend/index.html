@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+
+  <title>Mercado Libre</title>
+
+
+</head>
+<body data-page="mercadolibre">
+ <div id="loading" style="
+  position:fixed;
+  inset:0;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  z-index: 1;
+">
+  Cargando datos...
+</div>
+<div id="navbar"></div>
+
+<script>
+
+  fetch('nav.html')
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById('navbar').innerHTML = html;
+
+      // Marcar activo según página
+      const page = document.body.dataset.page;
+      document.querySelectorAll('nav a').forEach(a => {
+        if (a.dataset.page === page) {
+          a.classList.add('active');
+        }
+      });
+    });
+
+  
+
+</script>
+<h2>Control de paquetes de Mercado Libre</h2>
+
+<!-- =================== ESCANEO COMPLETO =================== -->
+<div class="box">
+  <h3>Escanear / pegar paquetes</h3>
+
+  <!-- Persona -->
+  <input
+    id="scanPerson"
+    type="text"
+    placeholder="Nombre de la persona"
+    class="person"
+  />
+
+  <!-- Fecha manual -->
+  <input
+    id="scanDate"
+    type="date"
+    class="scanfecha"
+  />
+
+  <!-- Colecta -->
+  <select id="scanColecta" class="scancolect">
+    <option value="">Selecciona colecta</option>
+    <option value="1">Colecta 1</option>
+    <option value="2">Colecta 2</option>
+    <option value="3">Colecta 3</option>
+    <option value="4">Colecta 4</option>
+    <option value="5">Colecta 5</option>
+    <option value="6">Colecta 6</option>
+  </select>
+
+  <!-- Códigos -->
+  <textarea
+    id="packagesInput"
+    placeholder="Pega aquí los códigos..."
+    class="packages"
+    
+  ></textarea>
+
+  <button id="btnProcesar" onclick="processPackages()" class="process">Procesar paquetes</button>
+
+  <p id="result"></p>
+</div>
+
+<!-- =================== TABLA =================== -->
+<div class="box">
+  <h3>Paquetes registrados</h3><h4 class="filterb">Filtro por fecha y colecta</h4>
+
+  <!-- Buscador -->
+  <input
+    id="searchInput"
+    type="text"
+    placeholder="Buscar por código"
+    oninput="filterPackages()"
+    class="filter"
+  />
+   
+
+  <input type="date" id="filterDate" class="fildate">
+
+  <select id="filterColecta" class="filcol">
+    <option value="ALL">Todas las colectas</option>
+    <option value="1">Colecta 1</option>
+    <option value="2">Colecta 2</option>
+    <option value="3">Colecta 3</option>
+    <option value="4">Colecta 4</option>
+    <option value="5">Colecta 5</option>
+    <option value="6">Colecta 6</option>
+  </select>
+    <div style="margin-top: 15px; padding: 15px; border: 2px solid #007bff; border-radius: 8px; background-color: #f0f7ff;">
+        <label><strong>📅 Filtrado por mes (Selecciona varios con Ctrl):</strong></label>
+        <br>
+        <select id="filterMonth" onchange="filterByMonthYear()" multiple style="width: 200px; height: 100px; margin: 10px 0; padding: 5px;">
+            <option value="01">Enero</option>
+            <option value="02">Febrero</option>
+            <option value="03">Marzo</option>
+            <option value="04">Abril</option>
+            <option value="05">Mayo</option>
+            <option value="06">Junio</option>
+            <option value="07">Julio</option>
+            <option value="08">Agosto</option>
+            <option value="09">Septiembre</option>
+            <option value="10">Octubre</option>
+            <option value="11">Noviembre</option>
+            <option value="12">Diciembre</option>
+        </select>
+
+        <select id="filterYear" onchange="filterByMonthYear()" style="padding: 5px; vertical-align: top;"></select>
+        
+        <div style="display: inline-block; vertical-align: top; margin-left: 20px;">
+            <button onclick="clearMonthFilter()" style="margin-bottom: 5px;">Restablecer</button>
+            <br>
+        </div>
+    </div>
+  <button onclick="filterByDateAndColecta()" class="inputbu">Filtrar</button>
+  <button onclick="resetDateColecta()" class="inputbu">Limpiar</button>
+  <button onclick="removeDuplicate()" class="inputbu"> Borrar repetidos</button>
+  <button onclick="deleteSelected()" style="background:#c62828;color:white" class="inputbu">
+  Borrar seleccionados
+</button>
+<button onclick="printTable()" class="inputbu">Imprimir resultados</button>
+
+  <p id="filteredTotal"><strong>Total filtrado:</strong> 0</p>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" id="todos" onclick="toggleAll(this)"></th>
+        <th>Código</th>
+        <th>Tipo</th>
+        <th>Fecha</th>
+        <th>Persona</th>
+        <th>Colecta</th>
+        <th>Editar</th>
+      </tr>
+    </thead>
+    <tbody id="packagesTable"></tbody>
+  </table>
+  </div>
+  <p id="totalCount"><strong>Total general:</strong> 0</p>
+
+</div>
+
+<script>
+  
+  const API = 'http://localhost:3000/packages';
+let allPackages = [];
+let typingTimer;                // <--- Nueva
+const doneTypingInterval = 500; // <--- Nueva (espera 500ms)
+  /* =================== PROCESAR PAQUETES =================== */
+function toggleAll(source) {
+    // Seleccionamos todos los checkboxes que tienen la clase 'row-check'
+    const checkboxes = document.querySelectorAll('.row-check');
+    
+    // Recorremos cada uno y le asignamos el mismo estado que el checkbox "todos"
+    checkboxes.forEach(cb => {
+        cb.checked = source.checked;
+    });
+}
+  //funcion para busqueda por mes // FILTRADO POR MES (MULTIPLE) Y AÑO
+// Llenar el select de años automáticamente (desde 2024 hasta el actual)
+function setupYearFilter() {
+    const yearSelect = document.getElementById('filterYear');
+    const currentYear = new Date().getFullYear();
+    for (let i = 2024; i <= currentYear; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = i;
+        if (i === currentYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+    }
+}
+
+async function filterByMonthYear() {
+    const monthSelect = document.getElementById('filterMonth');
+    const year = document.getElementById('filterYear').value;
+    
+    // Obtenemos los valores seleccionados (ej: ["03"])
+    const selectedMonths = Array.from(monthSelect.selectedOptions).map(opt => opt.value);
+    
+    if (selectedMonths.length === 0) return;
+
+    // Usamos URLSearchParams para que la URL se arme perfecto
+    const params = new URLSearchParams();
+    params.append('months', selectedMonths.join(',')); // Enviará "03" o "03,04"
+    params.append('year', year);
+
+    const res = await fetch(`${API}/filter?${params.toString()}`);
+
+    if (res.ok) {
+        const filtered = await res.json();
+        renderTable(filtered);
+        document.getElementById('filteredTotal').innerHTML = `<strong>Total filtrado:</strong> ${filtered.length}`;
+    }
+}
+
+function clearMonthFilter() {
+    document.getElementById('filterMonth').selectedIndex = -1;
+    loadPasswords(); // O la función que carga todo por defecto
+}
+
+// Ejecutar al cargar la página
+setupYearFilter();
+
+// Función para dar un respiro al servidor
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function processPackages() {
+    const input = document.getElementById('packagesInput').value.trim();
+    const person = document.getElementById('scanPerson').value.trim();
+    const date = document.getElementById('scanDate').value;
+    const colecta = document.getElementById('scanColecta').value;
+
+    if (!input || !person || !date || !colecta) {
+        await showConfirmModal('Llena todos los campos');
+        return;
+    }
+
+    const lines = input.split('\n').filter(l => l.trim() !== '');
+    const chunkSize = 100;
+    const btn = document.getElementById('btnProcesar') || document.querySelector('button[onclick="processPackages()"]');
+
+    try {
+        if (btn) btn.disabled = true;
+
+        for (let i = 0; i < lines.length; i += chunkSize) {
+            const chunk = lines.slice(i, i + chunkSize).join('\n');
+            if (btn) btn.innerText = `Procesando: ${i} de ${lines.length}...`;
+
+            const res = await fetch(API + '/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ input: chunk, person, date, colecta: Number(colecta) })
+            });
+
+            if (!res.ok) throw new Error(`Fallo en el bloque ${i}`);
+
+            // IMPORTANTE: Esperar un poco más (800ms) para asegurar que SQLite soltó el archivo
+            await sleep(1000); 
+        }
+
+        // Si llega aquí, es que terminó todo
+        if (btn) btn.innerText = `¡Finalizado ${lines.length}!`;
+        document.getElementById('packagesInput').value = '';
+        await showConfirmModal('Proceso completado con éxito');
+        loadPackages();
+
+    } catch (error) {
+        console.error("Error crítico:", error);
+        await showConfirmModal('Se detuvo en el paquete 200. Revisa si hay duplicados.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Procesar Paquetes';
+        }
+    }
+}
+  /* =================== CARGAR TABLA =================== */
+async function loadPackages(retry = 0) {
+  try {
+    // Pedimos solo la página 1 al arrancar
+    const res = await fetch(API + '?page=1&limit=50');
+
+    if (!res.ok) throw new Error('API not ready');
+    
+    const result = await res.json(); 
+    
+    document.getElementById('loading').style.display = 'none';
+    
+    allPackages = result.data; // Guardamos los 50 actuales
+    
+    renderTable(allPackages);
+    updateTotal(result.total); // Mostramos los 200,000 en el total general
+
+  } catch (err) {
+    if (retry < 20) {
+      setTimeout(() => loadPackages(retry + 1), 500);
+    } else {
+      document.getElementById('loading').innerText = "Error de conexión.";
+    }
+  }
+}
+
+function updateTotal(count) {
+  document.getElementById('totalCount').innerHTML =
+    `<strong>Total general:</strong> ${count}`;
+}
+
+function renderTable(packages) {
+  const masterCheck = document.getElementById('todos');
+  if (masterCheck) masterCheck.checked = false;
+  
+  const tbody = document.getElementById('packagesTable');
+  tbody.innerHTML = ''; 
+
+  const fragment = document.createDocumentFragment();
+
+  // 'packages' ya viene limitado a 50 desde el servidor
+  packages.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.id = `row-${p.id}`;
+    tr.innerHTML = `
+        <td><input type="checkbox" class="row-check" value="${p.id}"></td>
+        <td>${p.code}</td>
+        <td>${p.type}</td>
+        <td>${p.date}</td>
+        <td>${p.person ?? ''}</td>
+        <td>${p.colecta ?? ''}</td>
+        <td><button onclick="editRow(${p.id})">Editar</button></td>
+    `;
+    fragment.appendChild(tr);
+  });
+
+  tbody.appendChild(fragment);
+}
+
+
+
+
+async function filterByDateAndColecta() {
+    const date = document.getElementById('filterDate').value;
+    const colecta = document.getElementById('filterColecta').value;
+
+    if (!date) {
+        await showConfirmModal('Selecciona una fecha');
+        return;
+    }
+
+    // Llamamos a la ruta de reporte que trae TODO lo del día (sin límite de 50)
+    const res = await fetch(`${API}/report-day?date=${date}&colecta=${colecta}`);
+    
+    if (res.ok) {
+        const filtered = await res.json();
+        allPackages = filtered; // Actualizamos la lista local temporalmente
+        currentFilteredList = filtered; // Para la impresora
+        
+        renderTable(filtered);
+        document.getElementById('filteredTotal').innerHTML = `<strong>Total para reporte:</strong> ${filtered.length}`;
+    }
+}
+
+function filterPackages() {
+    clearTimeout(typingTimer);
+    const search = document.getElementById('searchInput').value.trim();
+
+    typingTimer = setTimeout(async () => {
+        // Si no hay nada escrito, cargamos la página 1 normal
+        if (!search) {
+            loadPackages();
+            return;
+        }
+
+        // Si hay texto, le pedimos al servidor que busque en los 200k registros
+        try {
+            const res = await fetch(`${API}?page=1&limit=50&search=${search}`);
+            if (res.ok) {
+                const result = await res.json();
+                renderTable(result.data);
+                document.getElementById('filteredTotal').innerHTML = 
+                    `<strong>Resultados de búsqueda:</strong> ${result.total}`;
+            }
+        } catch (error) {
+            console.error("Error en búsqueda:", error);
+        }
+    }, doneTypingInterval);
+}
+
+// También en resetDateColecta
+function resetDateColecta() {
+    document.getElementById('filterDate').value = '';
+    document.getElementById('filterColecta').value = 'ALL';
+    
+    currentFilteredList = allPackages; // Volvemos a mostrar todo
+    renderTable(allPackages);
+    document.getElementById('filteredTotal').innerHTML = `<strong>Total filtrado:</strong> 0`;
+}
+
+ function editRow(id) {
+  // 1. Buscamos usando doble igual (==) para evitar problemas de String vs Number
+  let pkg = allPackages.find(p => p.id == id);
+  const row = document.getElementById(`row-${id}`);
+
+  if (!row) {
+    console.error('Fila HTML no encontrada en la tabla', id);
+    return;
+  }
+
+  // 2. EL RESCATE: Si el buscador limitó el array y pkg es undefined, 
+  // recuperamos los datos directo de las celdas dibujadas antes de meter los inputs
+  if (!pkg) {
+    console.log('Paquete no encontrado en memoria global, rescatando de la tabla HTML...');
+    const celdas = row.getElementsByTagName('td');
+    
+    // Armamos el objeto simulado leyendo los textos que ya están impresos en pantalla
+    pkg = {
+      id: id,
+      code: celdas[1] ? celdas[1].innerText.trim() : '',
+      type: celdas[2] ? celdas[2].innerText.trim() : 'DROP_OFF',
+      date: celdas[3] ? celdas[3].innerText.trim() : '',
+      person: celdas[4] ? celdas[4].innerText.trim() : '',
+      colecta: celdas[5] ? celdas[5].innerText.trim() : ''
+    };
+  }
+
+  // Ahora sí, garantizamos que pkg tiene datos y transformamos la fila de forma segura
+  row.innerHTML = `
+    <td></td>
+    <td><input value="${pkg.code}" id="code-${id}"></td>
+
+    <td>
+      <select id="type-${id}">
+        <option value="DROP_OFF" ${pkg.type === 'DROP_OFF' ? 'selected' : ''}>DROP_OFF</option>
+        <option value="DEVOLUCION" ${pkg.type === 'DEVOLUCION' ? 'selected' : ''}>DEVOLUCION</option>
+        <option value="PICK_UP" ${pkg.type === 'PICK_UP' ? 'selected' : ''}>PICK_UP</option>
+      </select>
+    </td>
+
+    <td><input type="date" value="${pkg.date}" id="date-${id}"></td>
+    <td><input value="${pkg.person}" id="person-${id}"></td>
+    <td><input type="number" value="${pkg.colecta}" id="colecta-${id}"></td>
+
+    <td>
+      <button onclick="saveRow(${id})">Guardar</button>
+    </td>
+  `;
+}
+
+async function saveRow(id) {
+  const body = {
+    code: document.getElementById(`code-${id}`).value,
+    type: document.getElementById(`type-${id}`).value,
+    date: document.getElementById(`date-${id}`).value,
+    person: document.getElementById(`person-${id}`).value,
+    colecta: Number(document.getElementById(`colecta-${id}`).value),
+  };
+
+  if (!body.code || !body.type || !body.date || !body.person || !body.colecta) {
+    await showConfirmModal('No dejes campos vacíos');
+    return;
+  }
+
+  await fetch(`${API}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  loadPackages();
+}
+
+//Borrar repetidos
+
+async function removeDuplicate() {
+  const ok = await showConfirmModal('¿Seguro que deseas borrar los paquetes repetidos?');
+  if (!ok) return;
+
+  const res = await fetch(API + '/duplicates', {
+    method: 'DELETE',
+  });
+
+  const data = await res.json();
+
+  await showConfirmModal(`Repetidos eliminados: ${data.deleted}`);
+  loadPackages();
+}
+//borrar selecionados
+async function deleteSelected() {
+  const checks = document.querySelectorAll('.row-check:checked');
+
+  if (checks.length === 0) {
+    await showConfirmModal('Selecciona al menos un paquete');
+    return;
+  }
+
+  const ids = Array.from(checks).map(c => Number(c.value));
+
+  const ok = await showConfirmModal(`¿Seguro que deseas borrar ${ids.length} paquete(s)?`);
+  if (!ok) return;
+
+  await fetch(API, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+
+  loadPackages();
+}
+
+
+  // Cargar al abrir
+loadPackages();
+</script>
+<script src="app.js"></script>
+<!-- MODAL -->
+<div id="modalOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); align-items:center; justify-content:center;">
+  <div style="background:#fff; padding:20px; border-radius:8px; min-width:300px;">
+    <h3 id="modalTitle"></h3>
+    <p id="modalMessage"></p>
+
+    <input id="modalInput" type="password" style="width:100%; display:none; margin:10px 0;" />
+
+    <div style="text-align:right; margin-top:15px;">
+      <button onclick="closeModal(false)">Cancelar</button>
+      <button onclick="closeModal(true)">Aceptar</button>
+    </div>
+  </div>
+</div>
+<script>
+let modalResolve;
+
+function showConfirmModal(message, title = 'Confirmar') {
+  return new Promise(resolve => {
+    modalResolve = resolve;
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalMessage').innerText = message;
+    document.getElementById('modalInput').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'flex';
+  });
+}
+
+function showPromptModal(message, title = 'Ingrese valor') {
+  return new Promise(resolve => {
+    modalResolve = resolve;
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalMessage').innerText = message;
+
+    const input = document.getElementById('modalInput');
+    input.value = '';
+    input.style.display = 'block';
+
+    document.getElementById('modalOverlay').style.display = 'flex';
+  });
+}
+
+function closeModal(ok) {
+  const overlay = document.getElementById('modalOverlay');
+  const input = document.getElementById('modalInput');
+
+  overlay.style.display = 'none';
+
+  if (!ok) return modalResolve(null);
+  modalResolve(input.style.display === 'block' ? input.value : true);
+}
+// Habilitar clic derecho en toda la página
+window.oncontextmenu = function() {
+    return true; // Esto permite que el menú del sistema aparezca
+};
+
+
+</script>
+
+</body>
+</html>

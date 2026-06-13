@@ -39,7 +39,7 @@ if (isProd) {
       entities: [path.join(__dirname, '**', '*.entity{.ts,.js}')],
       
       // --- OPTIMIZACIONES PARA MÁQUINAS VIEJAS ---
-      synchronize: isProd ? false : true, // En el cyber ya no necesitas sincronizar cada vez
+      synchronize: true, // En el cyber ya no necesitas sincronizar cada vez
       logging: false,
       
       // Esto ayuda a que SQLite no bloquee la PC de 4GB al buscar

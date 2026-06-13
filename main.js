@@ -17,7 +17,7 @@ function startBackend() {
     
   const backendPath = path.join(backendDir, 'main.js');
 
-  backendProcess = spawn(process.execPath, [backendPath], {
+  backendProcess = spawn('"' + process.execPath + '"', ['"' + backendPath + '"'], {
     shell: true,
     windowsHide: true,
     env: {

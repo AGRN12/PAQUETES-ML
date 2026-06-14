@@ -1,4 +1,8 @@
-const API = 'http://localhost:3000/auth/login';
+// ✅ Dinámico: Usa la IP del puente o localhost si no encuentra nada
+const BASE_NET_URL = window.API_URL || 'http://localhost:3000';
+
+// 🚀 LA RUTA CORRECTA QUE USABA TU BACKEND:
+const API = `${BASE_NET_URL}/auth/login`; 
 
 async function login() {
   const username = document.getElementById('username').value;

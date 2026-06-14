@@ -2,7 +2,12 @@
  * CONFIGURACIÓN
  *********************************/
 
-const API = 'http://localhost:3000/passwords';
+// ✅ Dinámico: Usa la IP del puente o localhost si no encuentra nada
+const BASE_NET_URL = window.API_URL || 'http://localhost:3000';
+// Comprueba que las rutas apanten exactamente a los controladores de NestJS:
+const API = `${BASE_NET_URL}/passwords`;
+const BACKUP_API = `${BASE_NET_URL}/backup`;
+const USERS_API = `${BASE_NET_URL}/users`;
 let passwordList = [];
 
 /*********************************
@@ -71,17 +76,18 @@ async function exportBackup() {
   }
 }
 function logout(msg = 'Sesión expirada') {
-  localStorage.clear();
-  
+  // 1. 🛡️ RESPALDAR CONFIGURACIÓN DE RED ANTES DE BORRAR
+  const modoRed = localStorage.getItem('cyber_modo_red');
+  const ipServidor = localStorage.getItem('cyber_ip_servidor');
 
-  const currentPage = window.location.pathname;
+  // 2. Limpieza limpia de datos de usuario (contraseñas, tokens, etc.)
+  localStorage.clear(); 
 
-  // 👇 SI YA ESTÁS EN LOGIN, NO HAGAS NADA
-  if (currentPage.includes('login.html')) {
-    return;
-  }
+  // 3. 🛡️ REINYECTAR LA CONFIGURACIÓN DE RED AUTOMÁTICAMENTE
+  if (modoRed) localStorage.setItem('cyber_modo_red', modoRed);
+  if (ipServidor) localStorage.setItem('cyber_ip_servidor', ipServidor);
 
-  // 👇 SI NO, MANDA A LOGIN
+  // 4. Redirección normal
   window.location.href = 'login.html';
 }
 

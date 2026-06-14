@@ -6,8 +6,7 @@
   <link rel="stylesheet" href="style.css">
 
   <title>Mercado Libre</title>
-
-
+  <script src="config.js"></script>
 </head>
 <body data-page="mercadolibre">
  <div id="loading" style="
@@ -169,7 +168,9 @@
 
 <script>
   
-  const API = 'http://localhost:3000/packages';
+// ✅ Dinámico: Usa la IP del puente o localhost si no encuentra nada
+const BASE_NET_URL = window.API_URL || 'http://localhost:3000';
+const API = `${BASE_NET_URL}/packages`;
 let allPackages = [];
 let typingTimer;                // <--- Nueva
 const doneTypingInterval = 500; // <--- Nueva (espera 500ms)
